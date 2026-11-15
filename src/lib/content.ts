@@ -7,6 +7,8 @@ import {
   readPeriod,
 } from "@/lib/content-format";
 import { pick, type Locale } from "@/lib/i18n";
+import { caseBlocks, type CaseSection } from "@/lib/case-blocks";
+import { isSafePublicPath } from "@/lib/content-format";
 import { nbsp } from "@/lib/nbsp";
 import { prisma } from "@/lib/prisma";
 import { cache } from "react";
@@ -128,6 +130,42 @@ function projectDate(
   );
 }
 
+type SectionRow = CaseSection & { textEn: string };
+
+/**
+ * Block rows keep their text in `text`; `heading` and `body` mirror it. An
+ * English copy replaces all three, so a reader takes one field.
+ */
+function localSections(sections: SectionRow[], locale: Locale) {
+  return sections.map((section) => {
+    const en = locale === "en" && section.textEn.trim() ? section.textEn : null;
+    const heading =
+      en !== null && section.kind !== "paragraph" ? en : section.heading;
+    const body = en !== null && section.kind === "paragraph" ? en : section.body;
+    return {
+      ...section,
+      heading: typeset(heading, locale),
+      body: typeset(body, locale),
+      text: typeset(en ?? section.text, locale),
+    };
+  });
+}
+
+/** The one photo an NDA teaser shows: the hero, or the first photo. */
+export function ndaPhoto(project: {
+  heroImage: string;
+  sections: { kind: string; imageSrc: string | null }[];
+}) {
+  if (project.heroImage && isSafePublicPath(project.heroImage)) {
+    return project.heroImage;
+  }
+  const section = project.sections.find(
+    (item) =>
+      item.kind !== "video" && item.imageSrc && isSafePublicPath(item.imageSrc),
+  );
+  return section?.imageSrc ?? "";
+}
+
 export async function getHomeContent(locale: Locale = "ru") {
   const clock = rankClock(new Date());
   const [chrome, companies, projects] = await Promise.all([
@@ -181,6 +219,16 @@ export async function getHomeContent(locale: Locale = "ru") {
         bloubShape: true,
         bloubState: true,
         bloubExpression: true,
+        // The case modal on the home page shows the case itself.
+        summary: true,
+        summaryEn: true,
+        heroImage: true,
+        nda: true,
+        ndaTitle: true,
+        ndaTitleEn: true,
+        ndaText: true,
+        ndaTextEn: true,
+        sections: { orderBy: { sortOrder: "asc" } },
       },
     }),
   ]);
@@ -229,6 +277,29 @@ export async function getHomeContent(locale: Locale = "ru") {
       bloubShape: project.bloubShape,
       bloubState: project.bloubState,
       bloubExpression: project.bloubExpression,
+      case: {
+        summary: typeset(
+          pick(project.summary, project.summaryEn, locale),
+          locale,
+        ),
+        nda: project.nda,
+        ndaTitle: typeset(
+          pick(project.ndaTitle, project.ndaTitleEn, locale),
+          locale,
+        ),
+        ndaText: typeset(
+          pick(project.ndaText, project.ndaTextEn, locale),
+          locale,
+        ),
+        ndaPhoto: project.nda ? ndaPhoto(project) : "",
+        // An NDA case keeps its sections private: they stay out of the page.
+        blocks: project.nda
+          ? []
+          : caseBlocks({
+              heroImage: project.heroImage,
+              sections: localSections(project.sections, locale),
+            }),
+      },
       order: project.order,
       sortRank: projectSortRank(project),
       sortTie: project.order,
@@ -298,22 +369,7 @@ export const getProjectBySlug = cache(
       tags: (JSON.parse(project.tags) as string[]).map((tag) =>
         typeset(tag, locale),
       ),
-      sections: project.sections.map((section) => {
-        // Block rows keep their text in `text`; `heading` and `body` mirror
-        // it. An English copy replaces all three, so the page reads one field.
-        const en =
-          locale === "en" && section.textEn.trim() ? section.textEn : null;
-        const heading =
-          en !== null && section.kind !== "paragraph" ? en : section.heading;
-        const body =
-          en !== null && section.kind === "paragraph" ? en : section.body;
-        return {
-          ...section,
-          heading: typeset(heading, locale),
-          body: typeset(body, locale),
-          text: typeset(en ?? section.text, locale),
-        };
-      }),
+      sections: localSections(project.sections, locale),
     };
   },
 );

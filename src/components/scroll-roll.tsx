@@ -72,6 +72,14 @@ export function ScrollRoll() {
 
     const update = (now: number) => {
       frame = 0;
+      // An open modal pins the page: scrollY reads 0 while nothing has
+      // moved. Acting on that tipped every card as if it sat below the
+      // screen, and they slid back when the modal closed. Hold still; the
+      // scroll event of the unpin brings the next frame.
+      if (root.dataset.scrollLock) {
+        last = 0;
+        return;
+      }
       const dt = last ? Math.min(now - last, 64) : 16;
       last = now;
       const blend = 1 - Math.exp(-dt / SMOOTH_MS);

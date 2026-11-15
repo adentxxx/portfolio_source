@@ -36,7 +36,11 @@ export async function HomeView({ locale }: { locale: Locale }) {
         links={intro.links}
         faces={intro.faces}
       />
-      <Roadmap companies={companies} projects={projects} />
+      <Roadmap
+        companies={companies}
+        projects={projects}
+        contactLinks={contact.links}
+      />
       <ContactCard
         headline={contact.headline}
         subline={contact.subline}

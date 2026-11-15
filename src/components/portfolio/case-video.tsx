@@ -11,7 +11,10 @@ export function CaseVideo({
   muted,
   loop,
   controls,
+  inModal = false,
 }: {
+  /** Inside the case modal: no scroll roll, the modal's own corner radius. */
+  inModal?: boolean;
   src: string;
   poster: string | null;
   autoplay: boolean;
@@ -85,8 +88,12 @@ export function CaseVideo({
 
   return (
     <div
-      data-roll="media"
-      className="relative w-full overflow-hidden rounded-[24px] bg-surface-control"
+      data-roll={inModal ? undefined : "media"}
+      className={
+        inModal
+          ? "card-modal-media relative w-full overflow-hidden bg-surface-control"
+          : "relative w-full overflow-hidden rounded-[24px] bg-surface-control"
+      }
       style={{ aspectRatio: ratio ? String(ratio) : "116 / 50" }}
     >
       {visualReady ? null : (

@@ -9,17 +9,17 @@
   --surface-card: #f2f1ed;
   --surface-control: #e6e5e0;
   --surface-points: #d9d9d9;
-  --surface-inverse: #323232;
+  --surface-inverse: #2d2d2d;
   /* Figma surface/overlay on Only Icon: page color at alpha 1F (~12%). */
   --surface-overlay: #f7f7f41f;
-  /* Figma surface/overlay dark: gray/900 at 20%. Modal scrim. */
-  --surface-overlay-dark: #26251e33;
-  --text-primary: #323232;
-  --text-secondary: #757575;
+  /* Figma surface/overlay dark: gray/900 (#1d1d1d) at 20%. Modal scrim. */
+  --surface-overlay-dark: #1d1d1d33;
+  --text-primary: #2d2d2d;
+  --text-secondary: #525252;
   --text-muted: #b3b3b3;
   --text-on-inverse: #f7f7f4;
-  --icon-primary: #323232;
-  --icon-secondary: #757575;
+  --icon-primary: #2d2d2d;
+  --icon-secondary: #525252;
   --icon-muted: #d9d9d9;
   --border-subtle: #eaeaea;
   --border-default: #d9d9d9;
@@ -73,23 +73,23 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --surface-page: #26251e;
-    --surface-card: #323232;
-    --surface-control: #323232;
-    --surface-points: #323232;
+    --surface-page: #1d1d1d;
+    --surface-card: #2d2d2d;
+    --surface-control: #525252;
+    --surface-points: #2d2d2d;
     --surface-inverse: #f7f7f4;
-    --surface-overlay: #26251e73;
+    --surface-overlay: #1d1d1d73;
     /* Figma surface/overlay dark: gray/900 at 45%. */
-    --surface-overlay-dark: #26251e73;
+    --surface-overlay-dark: #1d1d1d73;
     --text-primary: #f7f7f4;
     --text-secondary: #d9d9d9;
-    --text-muted: #757575;
-    --text-on-inverse: #26251e;
+    --text-muted: #525252;
+    --text-on-inverse: #1d1d1d;
     --icon-primary: #f2f1ed;
     --icon-secondary: #d9d9d9;
-    --icon-muted: #757575;
-    --border-subtle: #757575;
-    --border-default: #757575;
+    --icon-muted: #525252;
+    --border-subtle: #525252;
+    --border-default: #525252;
     --accent-primary: #f7aa55;
     --accent-primary-hover: #ffc98f;
     --accent-information: #79aafa;
@@ -98,7 +98,7 @@
     --glass-edge: rgba(255, 255, 255, 0.2);
     --glass-shine: rgba(255, 255, 255, 0.22);
     --glass-shadow: rgba(0, 0, 0, 0.24);
-    --glass-solid: #323232;
+    --glass-solid: #2d2d2d;
     --switch-slot: 0;
     --switch-moon-ink: var(--text-on-inverse);
     --switch-sun-ink: var(--icon-primary);
@@ -108,22 +108,22 @@
 /* Explicit Button Bar choice. Same Mapped Dark values as the media query above. */
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --surface-page: #26251e;
-  --surface-card: #323232;
-  --surface-control: #323232;
-  --surface-points: #323232;
+  --surface-page: #1d1d1d;
+  --surface-card: #2d2d2d;
+  --surface-control: #525252;
+  --surface-points: #2d2d2d;
   --surface-inverse: #f7f7f4;
-  --surface-overlay: #26251e73;
-  --surface-overlay-dark: #26251e73;
+  --surface-overlay: #1d1d1d73;
+  --surface-overlay-dark: #1d1d1d73;
   --text-primary: #f7f7f4;
   --text-secondary: #d9d9d9;
-  --text-muted: #757575;
-  --text-on-inverse: #26251e;
+  --text-muted: #525252;
+  --text-on-inverse: #1d1d1d;
   --icon-primary: #f2f1ed;
   --icon-secondary: #d9d9d9;
-  --icon-muted: #757575;
-  --border-subtle: #757575;
-  --border-default: #757575;
+  --icon-muted: #525252;
+  --border-subtle: #525252;
+  --border-default: #525252;
   --accent-primary: #f7aa55;
   --accent-primary-hover: #ffc98f;
   --accent-information: #79aafa;
@@ -132,7 +132,7 @@
   --glass-edge: rgba(255, 255, 255, 0.2);
   --glass-shine: rgba(255, 255, 255, 0.22);
   --glass-shadow: rgba(0, 0, 0, 0.24);
-  --glass-solid: #323232;
+  --glass-solid: #2d2d2d;
   --switch-slot: 0;
   --switch-moon-ink: var(--text-on-inverse);
   --switch-sun-ink: var(--icon-primary);
@@ -759,9 +759,97 @@ body {
   letter-spacing: 0;
 }
 
-/* Work modal (Figma 237:1120). Phone padding and type sit in the 767px query. */
-.work-modal {
-  padding: 40px;
+/*
+  Work and case modal (Figma Iteration 2: 427:12645, 427:12644; phone
+  427:13237, 427:12971). `.card-modal` is the hidden copy the modal measures
+  its final size from; the live panel reads the numbers from it. Phone sizes
+  sit in the 767px query below.
+*/
+.card-modal {
+  width: min(880px, calc(100vw - 40px));
+  padding: 40px 40px 0;
+  border-radius: 48px;
+}
+
+.card-modal-header {
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.card-modal-logo {
+  width: 72px;
+  height: 72px;
+  border-radius: 22px;
+}
+
+.card-modal-name {
+  gap: 4px;
+}
+
+/* The close button sits in the corner (16 in, 64 wide). A long title wraps
+   before it instead of running under it. */
+.card-modal-name,
+.card-modal-name-live {
+  padding-right: 48px;
+}
+
+/* Room under the last block, so it can scroll clear of the bottom fade. */
+.card-modal-body {
+  padding-bottom: 40px;
+}
+
+.card-modal-text {
+  gap: 12px;
+}
+
+.card-modal-media {
+  border-radius: 24px;
+}
+
+.card-modal-scroll {
+  scrollbar-width: thin;
+}
+
+/* 40px fades in the card color at the top and bottom of the body. Content
+   scrolls under them and seems to come out of nothing. Each one shows only
+   while something is hidden behind it. */
+.card-modal-fade {
+  position: absolute;
+  right: 0;
+  left: 0;
+  z-index: 1;
+  height: 40px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.card-modal-fade.is-on {
+  opacity: 1;
+}
+
+.card-modal-fade-top {
+  top: 0;
+  background: linear-gradient(
+    to bottom,
+    var(--surface-card),
+    color-mix(in srgb, var(--surface-card) 0%, transparent)
+  );
+}
+
+.card-modal-fade-bottom {
+  bottom: 0;
+  background: linear-gradient(
+    to top,
+    var(--surface-card),
+    color-mix(in srgb, var(--surface-card) 0%, transparent)
+  );
+}
+
+.card-modal-close-slot {
+  top: 16px;
+  right: 16px;
+  z-index: 2;
 }
 
 /* Cards Size=L, phone only (Figma 189:744). Tablet and desktop stay Size=XL. */
@@ -790,13 +878,14 @@ body {
   }
 
   .roadmap-card .card-role,
-  [data-work-dialog] .card-role {
+  [data-card-dialog] .card-role {
     font-size: var(--size-title4);
     line-height: var(--lh-title4);
   }
 
   .roadmap-card .card-copy,
-  [data-work-dialog] .card-copy {
+  [data-card-dialog] .card-copy,
+  .card-modal-copy {
     font-size: var(--size-footnote);
     line-height: var(--lh-footnote);
   }
@@ -809,19 +898,71 @@ body {
     height: 20px;
   }
 
-  /* Work modal, phone (Figma 237:1285). From 768: title1 / caption1 / padding 40. */
-  .work-modal {
-    padding: 32px;
+  /* Modal, phone (Figma 427:13237, 427:12971): 12 from the screen edges,
+     padding 28 / 24, radius 32, logo 52, title3, caption2, footnote. */
+  .card-modal {
+    width: calc(100vw - 24px);
+    padding: 28px 24px 0;
+    border-radius: 32px;
   }
 
-  .work-modal .work-modal-title {
-    font-size: var(--size-title2);
-    line-height: var(--lh-title2);
+  .card-modal-header {
+    gap: 12px;
   }
 
-  .work-modal-date {
+  .card-modal-logo {
+    width: 52px;
+    height: 52px;
+    border-radius: 20px;
+  }
+
+  .card-modal-name {
+    gap: 2px;
+  }
+
+  /* Phone close: 8 in, 52 wide, so 36 past the 24 padding, plus a gap. */
+  .card-modal-name,
+  .card-modal-name-live {
+    padding-right: 44px;
+  }
+
+  .card-modal-body {
+    padding-bottom: 28px;
+  }
+
+  .card-modal-text {
+    gap: 8px;
+  }
+
+  .card-modal-media {
+    border-radius: 16px;
+  }
+
+  .card-modal .card-modal-title {
+    font-size: var(--size-title3);
+    line-height: var(--lh-title3);
+  }
+
+  .card-modal-date,
+  [data-card-dialog] .card-tag {
     font-size: var(--size-caption2);
     line-height: var(--lh-caption2);
+  }
+
+  .card-modal .card-tag,
+  [data-card-dialog] .card-tag {
+    padding: 2px 6px;
+  }
+
+  .card-modal-close-slot {
+    top: 8px;
+    right: 8px;
+  }
+
+  .card-modal-close {
+    width: 52px;
+    height: 52px;
+    border-radius: 26px;
   }
 }
 

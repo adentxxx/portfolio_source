@@ -8,11 +8,11 @@ import {
 } from "@/components/portfolio/decor-icons";
 import {
   RoadmapCard,
-  type CompanyCardData,
+  type CardOrigin,
   type RoadmapCardData,
-  type WorkOrigin,
 } from "@/components/portfolio/roadmap-card";
-import { WorkModal } from "@/components/portfolio/work-modal";
+import { CardModal } from "@/components/portfolio/card-modal";
+import type { ContactLink } from "@/lib/content";
 import { useUi } from "@/hooks/use-locale";
 import { enter } from "@/lib/enter";
 import { publicPath } from "@/lib/public-path";
@@ -38,6 +38,8 @@ type Emotion = {
 type RoadmapProps = {
   companies: RoadmapCardData[];
   projects: RoadmapCardData[];
+  /** Contact buttons, shown in the modal of an NDA case. */
+  contactLinks?: ContactLink[];
 };
 
 /** Finish point under the contact block. Circle body, wide eyes. */
@@ -306,7 +308,7 @@ function ColumnLabel({
   );
 }
 
-export function Roadmap({ companies, projects }: RoadmapProps) {
+export function Roadmap({ companies, projects, contactLinks = [] }: RoadmapProps) {
   const ui = useUi();
   const avatarSrcs = useMemo(
     () => cardAvatarSrcs([...companies, ...projects]),
@@ -328,9 +330,9 @@ export function Roadmap({ companies, projects }: RoadmapProps) {
   // Points 0..rows.length-1 are card rows, index rows.length is the footer dot.
   const pointRefs = useRef<(HTMLSpanElement | null)[]>([]);
   const [hasScrolled, setHasScrolled] = useState(false);
-  const [openWork, setOpenWork] = useState<{
-    company: CompanyCardData;
-    origin: WorkOrigin;
+  const [openCard, setOpenCard] = useState<{
+    card: RoadmapCardData;
+    origin: CardOrigin;
   } | null>(null);
   // Viewport below the desktop breakpoint: mobile/tablet roadmap (§3.2).
   const [narrow, setNarrow] = useState(false);
@@ -1090,13 +1092,8 @@ export function Roadmap({ companies, projects }: RoadmapProps) {
                       live={live}
                     side={row.side}
                     reducedMotion={reducedMotion}
-                    concealed={
-                      row.card.kind === "company" &&
-                      openWork?.company.id === row.card.id
-                    }
-                    onOpenWork={(company, origin) =>
-                      setOpenWork({ company, origin })
-                    }
+                    concealed={openCard?.card.id === row.card.id}
+                    onOpen={(card, origin) => setOpenCard({ card, origin })}
                   />
                 </div>
 
@@ -1187,11 +1184,12 @@ export function Roadmap({ companies, projects }: RoadmapProps) {
           <p className="sr-only">{ui.roadmapEnd}</p>
         </footer>
       </div>
-      {openWork ? (
-        <WorkModal
-          company={openWork.company}
-          origin={openWork.origin}
-          onClose={() => setOpenWork(null)}
+      {openCard ? (
+        <CardModal
+          card={openCard.card}
+          origin={openCard.origin}
+          contactLinks={contactLinks}
+          onClose={() => setOpenCard(null)}
         />
       ) : null}
     </section>

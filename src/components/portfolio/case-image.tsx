@@ -3,13 +3,24 @@
 import { publicPath } from "@/lib/public-path";
 import { useState } from "react";
 
-export function CaseImage({ src }: { src: string }) {
+export function CaseImage({
+  src,
+  inModal = false,
+}: {
+  src: string;
+  /** Inside the case modal: no scroll roll, the modal's own corner radius. */
+  inModal?: boolean;
+}) {
   const [ready, setReady] = useState(false);
 
   return (
     <div
-      data-roll="media"
-      className="relative aspect-[116/50] w-full overflow-hidden rounded-[24px] bg-surface-control"
+      data-roll={inModal ? undefined : "media"}
+      className={
+        inModal
+          ? "card-modal-media relative aspect-[116/50] w-full overflow-hidden bg-surface-control"
+          : "relative aspect-[116/50] w-full overflow-hidden rounded-[24px] bg-surface-control"
+      }
     >
       {ready ? null : <div className="media-skeleton absolute inset-0" aria-hidden />}
       {/* Unoptimized case photos. A native img reports load even when the

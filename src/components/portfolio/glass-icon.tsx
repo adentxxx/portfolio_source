@@ -18,6 +18,7 @@ const ICONS = {
   left: { src: "/icons/left.svg", w: 5.5, h: 11.5, x: 9.25, y: 6.25 },
   right: { src: "/icons/right.svg", w: 5.5, h: 11.5, x: 9.25, y: 6.25 },
   home: { src: "/icons/home.svg", w: 22.4795, h: 22.0279, x: 0.76, y: 1.25 },
+  close: { src: "/icons/close.svg", w: 15.5, h: 15.5, x: 4.25, y: 4.25 },
 } as const;
 
 export type GlassIconName = keyof typeof ICONS;

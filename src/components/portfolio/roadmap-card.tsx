@@ -4,6 +4,7 @@ import { TiltedSurface } from "@/components/portfolio/tilted-surface";
 import { useLocale } from "@/hooks/use-locale";
 import { localizePath } from "@/lib/i18n";
 import { publicPath, pagePath } from "@/lib/public-path";
+import type { CaseBlock } from "@/lib/case-blocks";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { useEffect, useState, type CSSProperties } from "react";
@@ -33,28 +34,43 @@ export type CompanyCardData = {
   sortTie: number;
 };
 
+/** What the case modal shows: the case page in the page language. */
+export type ProjectCase = {
+  summary: string;
+  nda: boolean;
+  ndaTitle: string;
+  ndaText: string;
+  /** NDA teaser photo. Empty when there is none. */
+  ndaPhoto: string;
+  blocks: CaseBlock[];
+};
+
+export type ProjectCardData = {
+  kind: "project";
+  id: string;
+  slug: string;
+  title: string;
+  dateLabel: string;
+  description: string;
+  tags: string[];
+  logoSrc: string;
+  bloubEmotion: string;
+  bloubShape: string;
+  bloubState: string;
+  bloubExpression: string | null;
+  case: ProjectCase;
+  /** Newer cards have a higher rank. Not shown. */
+  sortRank: number;
+  sortTie: number;
+};
+
 export type RoadmapCardData =
   | CompanyCardData
-  | {
-      kind: "project";
-      id: string;
-      slug: string;
-      title: string;
-      dateLabel: string;
-      description: string;
-      tags: string[];
-      logoSrc: string;
-      bloubEmotion: string;
-      bloubShape: string;
-      bloubState: string;
-      bloubExpression: string | null;
-      /** Newer cards have a higher rank. Not shown. */
-      sortRank: number;
-      sortTie: number;
-    };
+  | ProjectCardData;
 
-/** Geometry and type of the work card at the moment it is pressed. */
-export type WorkOrigin = {
+
+/** Geometry and type of a card at the moment it is pressed. */
+export type CardOrigin = {
   top: number;
   left: number;
   width: number;
@@ -78,9 +94,11 @@ function px(value: string, fallback: number) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-export function readWorkOrigin(button: HTMLElement): WorkOrigin {
-  const face =
-    button.querySelector<HTMLElement>("[data-company-face]") ?? button;
+/** Kept for the old name. */
+export type WorkOrigin = CardOrigin;
+
+export function readCardOrigin(button: HTMLElement): CardOrigin {
+  const face = button.querySelector<HTMLElement>("[data-card-face]") ?? button;
   // The button is not transformed. The tilted face's box would be the
   // axis-aligned bounds of the hover, larger than the card in the layout.
   const box = button.getBoundingClientRect();
@@ -89,7 +107,7 @@ export function readWorkOrigin(button: HTMLElement): WorkOrigin {
   const headerStyle = header instanceof HTMLElement ? getComputedStyle(header) : null;
   const name = header instanceof HTMLElement ? header.children[1] : null;
   const nameStyle = name instanceof HTMLElement ? getComputedStyle(name) : null;
-  const logo = face.querySelector<HTMLElement>("[data-company-logo]");
+  const logo = face.querySelector<HTMLElement>("[data-card-logo]");
   const logoStyle = logo ? getComputedStyle(logo) : null;
   const icon = logo?.querySelector("img");
   const title = face.querySelector("h3");
@@ -124,9 +142,21 @@ type RoadmapCardProps = {
   live?: boolean;
   side: "left" | "right";
   reducedMotion?: boolean;
+  /** Hidden while its modal is open: the modal grew out of it. */
   concealed?: boolean;
-  onOpenWork?: (company: CompanyCardData, origin: WorkOrigin) => void;
+  onOpen?: (card: RoadmapCardData, origin: CardOrigin) => void;
 };
+
+/** A plain click opens the modal. Ctrl, Cmd, Shift, or the middle button keep the link. */
+function plainClick(event: React.MouseEvent) {
+  return (
+    event.button === 0 &&
+    !event.metaKey &&
+    !event.ctrlKey &&
+    !event.shiftKey &&
+    !event.altKey
+  );
+}
 
 export function RoadmapCard({
   data,
@@ -135,7 +165,7 @@ export function RoadmapCard({
   side,
   reducedMotion = false,
   concealed = false,
-  onOpenWork,
+  onOpen,
 }: RoadmapCardProps) {
   const locale = useLocale();
   const tiltEnabled = active && !reducedMotion;
@@ -155,10 +185,11 @@ export function RoadmapCard({
     : ({ "aria-hidden": true, tabIndex: -1 } as const);
   const idle = !shown && "pointer-events-none";
 
-  // Figma `Cards`: 440 wide, radius 32, gap 16, surface/card + border/subtle.
-  // Size=XL padding 24. Phone Size=L (189:744) padding 20 — see .roadmap-card.
+  // Figma `Cards`: 440 wide, radius 32, gap 16, surface/card, no stroke
+  // (Iteration 2). Size=XL padding 24. Phone Size=L (189:744) padding 20 —
+  // see .roadmap-card.
   const shell = cn(
-    "roadmap-card flex w-full max-w-[440px] flex-col gap-4 rounded-[32px] border border-border-subtle bg-surface-card p-6 text-left",
+    "roadmap-card flex w-full max-w-[440px] flex-col gap-4 rounded-[32px] bg-surface-card p-6 text-left",
     // Stacked layout: every card shares the left edge. Wide layout: work hugs
     // the center from the left, cases from the right.
     side === "left" ? "min-[1160px]:ml-auto" : "mr-auto",
@@ -166,7 +197,7 @@ export function RoadmapCard({
 
   // Skeleton plates share the Active card's geometry so Default == Active height.
   // Figma radii, both sizes: date 8, title and role 12, description 16, logo 16.
-  const plate = "bg-surface-page ring-1 ring-inset ring-border-subtle";
+  const plate = "bg-surface-page";
 
   const plates = (
     <>
@@ -219,8 +250,8 @@ export function RoadmapCard({
       <div className="flex w-full items-center gap-3">
         <span
           {...rise(0)}
-          data-company-logo={data.kind === "company" ? "" : undefined}
-          className="flex size-[52px] shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border-subtle bg-surface-page"
+          data-card-logo
+          className="flex size-[52px] shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-surface-page"
         >
           <Image
             src={publicPath(data.logoSrc)}
@@ -276,21 +307,39 @@ export function RoadmapCard({
   );
 
   const face = cn(
-    "roadmap-card roadmap-card-press relative flex w-full flex-col gap-4 rounded-[32px] border border-border-subtle bg-surface-card p-6 text-left",
+    "roadmap-card roadmap-card-press relative flex w-full flex-col gap-4 rounded-[32px] bg-surface-card p-6 text-left",
     "cursor-pointer",
   );
   const align = side === "left" ? "ml-auto" : "mr-auto";
 
-  const card = <div className={face}>{inner}</div>;
+  const card = (
+    <div data-card-face className={face}>
+      {inner}
+    </div>
+  );
+
+  const openProject = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    if (!onOpen || !plainClick(event)) return;
+    event.preventDefault();
+    onOpen(data, readCardOrigin(event.currentTarget));
+  };
 
   if (tiltEnabled && data.kind === "project") {
     return (
       <a
         href={pagePath(localizePath(`/projects/${data.slug}`, locale))}
-        className={cn("block w-full max-w-[440px]", align, idle)}
+        className={cn(
+          "block w-full max-w-[440px] rounded-[32px]",
+          align,
+          idle,
+          concealed && "invisible",
+        )}
+        data-card-id={data.id}
         data-state={shown ? "active-project" : "default"}
         data-roll
         {...liveProps}
+        aria-hidden={concealed || !shown || undefined}
+        onClick={openProject}
       >
         <TiltedSurface>{card}</TiltedSurface>
       </a>
@@ -299,20 +348,20 @@ export function RoadmapCard({
 
   if (data.kind === "company") {
     const visual = (
-      <div data-company-face className={face}>
+      <div data-card-face className={face}>
         {inner}
       </div>
     );
     return (
       <button
         type="button"
-        data-company-id={data.id}
+        data-card-id={data.id}
         data-state={shown ? "active-work" : "default"}
         data-roll
         {...liveProps}
         aria-hidden={concealed || !shown || undefined}
         onClick={(event) => {
-          onOpenWork?.(data, readWorkOrigin(event.currentTarget));
+          onOpen?.(data, readCardOrigin(event.currentTarget));
         }}
         className={cn(
           "block w-full max-w-[440px] cursor-pointer rounded-[32px] border-0 bg-transparent p-0 text-left",
@@ -331,6 +380,7 @@ export function RoadmapCard({
     "roadmap-card-press",
     "cursor-pointer",
     idle,
+    concealed && "invisible",
   );
 
   if (data.kind === "project") {
@@ -338,9 +388,12 @@ export function RoadmapCard({
       <a
         href={pagePath(localizePath(`/projects/${data.slug}`, locale))}
         className={className}
+        data-card-id={data.id}
         data-state={shown ? "active-project" : "default"}
         data-roll
         {...liveProps}
+        aria-hidden={concealed || !shown || undefined}
+        onClick={openProject}
       >
         {inner}
       </a>
