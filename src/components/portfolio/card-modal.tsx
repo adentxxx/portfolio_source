@@ -12,14 +12,12 @@ import type {
 import { Button } from "@/components/ui/button";
 import { useUi } from "@/hooks/use-locale";
 import { textChunks, type TextAtom } from "@/lib/case-blocks";
-import { enter } from "@/lib/enter";
 import type { ContactLink } from "@/lib/content";
 import { publicPath } from "@/lib/public-path";
 import { cn } from "@/lib/utils";
 import { motion } from "motion/react";
 import Image from "next/image";
 import {
-  isValidElement,
   useEffect,
   useId,
   useLayoutEffect,
@@ -32,13 +30,15 @@ import { createPortal } from "react-dom";
 /**
  * Work and case modal (Figma Iteration 2: Work Modal 427:12645, Project Modal
  * 427:12644, phone 427:13237 and 427:12971). It grows out of the pressed card
- * and shrinks back into it. Header and body scroll together under two 40px
- * fades in the card color, so content comes out of nothing at the top and
- * bottom edges.
+ * and shrinks back into it. The card face (logo, date, title, tags/role,
+ * description) only morphs; the rest of the body reveals as it enters the
+ * scroll viewport. Header and body scroll together under two 40px fades.
  */
 type Morph = CardOrigin & {
   /** Side padding. The card has one padding; the phone modal has 24 / 28. */
   padX: number;
+  /** Room after the title for the close button; none on the card. */
+  namePad: number;
 };
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -49,48 +49,62 @@ function px(value: string, fallback: number) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-function workItems(company: CompanyCardData) {
-  const items: TextAtom[] = [];
-  if (company.role.trim()) {
-    items.push({ id: "role", kind: "heading", text: company.role });
-  }
-  if (company.description.trim()) {
-    items.push({ id: "description", kind: "paragraph", text: company.description });
-  }
-  for (const block of company.blocks) {
-    if (!block.text.trim()) continue;
-    items.push(block);
-  }
-  return items;
+/** Body copy; each line break starts a paragraph with paragraph spacing. */
+function Paragraphs({ text }: { text: string }) {
+  const lines = text.split(/\n+/).filter((line) => line.trim());
+  return (
+    <div className="card-modal-copy card-modal-paragraphs flex flex-col text-subheadline text-text-secondary">
+      {lines.map((line, index) => (
+        <p key={index}>{line}</p>
+      ))}
+    </div>
+  );
 }
 
-function TextBlocks({ items }: { items: TextAtom[] }) {
-  return (
-    <>
-      {textChunks(items).map((chunk) => (
-        <section key={chunk.key} className="card-modal-text flex flex-col">
-          {chunk.items.map((item) =>
-            item.kind === "heading" ? (
-              <h3 key={item.id} className="text-title3 text-text-primary">
-                {item.text}
-              </h3>
-            ) : item.kind === "subheading" ? (
-              <p key={item.id} className="text-body whitespace-pre-line text-text-primary">
-                {item.text}
-              </p>
-            ) : (
-              <p
-                key={item.id}
-                className="card-modal-copy text-subheadline whitespace-pre-line text-text-secondary"
-              >
-                {item.text}
-              </p>
-            ),
-          )}
-        </section>
-      ))}
-    </>
-  );
+function Copy({ item }: { item: TextAtom }) {
+  return <Paragraphs text={item.text} />;
+}
+
+/**
+ * One heading group: the title2 heading and everything under it up to the
+ * next heading, 16 apart. A title3 subheading and its copy up to the next
+ * subheading form a tight group, 4 apart.
+ */
+function TextChunk({ items }: { items: TextAtom[] }) {
+  const nodes: ReactNode[] = [];
+  let group: TextAtom[] | null = null;
+  const flush = () => {
+    if (!group) return;
+    const [head, ...copy] = group;
+    nodes.push(
+      <section key={head.id} className="card-modal-text flex flex-col">
+        <h3 className="text-title3 text-text-primary">{head.text}</h3>
+        {copy.map((item) => (
+          <Copy key={item.id} item={item} />
+        ))}
+      </section>,
+    );
+    group = null;
+  };
+  for (const item of items) {
+    if (item.kind === "heading") {
+      flush();
+      nodes.push(
+        <h2 key={item.id} className="text-title2 text-text-primary">
+          {item.text}
+        </h2>,
+      );
+    } else if (item.kind === "subheading") {
+      flush();
+      group = [item];
+    } else if (group) {
+      group.push(item);
+    } else {
+      nodes.push(<Copy key={item.id} item={item} />);
+    }
+  }
+  flush();
+  return <div className="card-modal-chunk flex flex-col">{nodes}</div>;
 }
 
 function Tags({ tags }: { tags: string[] }) {
@@ -111,14 +125,22 @@ function Tags({ tags }: { tags: string[] }) {
 }
 
 /**
- * Entrance of a block inside the modal, the same motion the page has on
- * load: text rises out of a short blur, media lifts. Blocks come in order,
- * starting while the panel is still growing; from the sixth on they share a
- * step, since they are below the fold anyway. The hidden measuring copy gets
- * none of it.
+ * A block of the body below the card face. Hidden until revealed: the ones
+ * inside the modal's final height come in while the panel grows, the rest
+ * as they scroll into view. The measuring copy marks the same boxes so the
+ * first batch can be counted before anything moves.
  */
-function blockEnter(index: number, kind: "rise" | "lift", measure: boolean) {
-  return measure ? {} : enter(2.5 + Math.min(index, 6), kind);
+function Reveal({
+  kind,
+  measure,
+  children,
+}: {
+  kind: "rise" | "lift";
+  measure: boolean;
+  children: ReactNode;
+}) {
+  if (measure) return <div data-measure-reveal>{children}</div>;
+  return <div data-modal-reveal={kind}>{children}</div>;
 }
 
 /** Media in the hidden copy used for measuring: the box without the file. */
@@ -141,67 +163,85 @@ function ProjectBody({
   if (project.case.nda) {
     if (project.case.ndaPhoto) {
       sections.push(
-        measure ? (
-          <MediaBox key="nda-photo" />
-        ) : (
-          <CaseImage key="nda-photo" src={project.case.ndaPhoto} inModal />
-        ),
+        <Reveal key="nda-photo" kind="lift" measure={measure}>
+          {measure ? (
+            <MediaBox />
+          ) : (
+            <CaseImage src={project.case.ndaPhoto} inModal />
+          )}
+        </Reveal>,
       );
     }
     sections.push(
-      <section key="nda" className="card-modal-text flex flex-col">
-        {project.case.ndaTitle ? (
-          <h3 className="text-title3 text-text-primary">{project.case.ndaTitle}</h3>
-        ) : null}
-        {project.case.ndaText ? (
-          <p className="card-modal-copy text-subheadline whitespace-pre-line text-text-secondary">
-            {project.case.ndaText}
-          </p>
-        ) : null}
-      </section>,
+      <Reveal key="nda" kind="rise" measure={measure}>
+        <section className="card-modal-text flex flex-col">
+          {project.case.ndaTitle ? (
+            <h3 className="text-title3 text-text-primary">{project.case.ndaTitle}</h3>
+          ) : null}
+          {project.case.ndaText ? <Paragraphs text={project.case.ndaText} /> : null}
+        </section>
+      </Reveal>,
     );
     if (contactLinks.length > 0) {
       sections.push(
-        <div key="nda-links" className="flex flex-wrap gap-3">
-          {contactLinks.map((link) => (
-            <Button
-              key={`${link.label}-${link.href}`}
-              asChild
-              mode="fill"
-              className="btn-fill-subtle min-w-[calc(50%-0.375rem)] flex-1"
-            >
-              <a href={link.href} target="_blank" rel="noreferrer" tabIndex={measure ? -1 : undefined}>
-                {link.label}
-              </a>
-            </Button>
-          ))}
-        </div>,
+        <Reveal key="nda-links" kind="rise" measure={measure}>
+          <div className="flex flex-wrap gap-3">
+            {contactLinks.map((link) => (
+              <Button
+                key={`${link.label}-${link.href}`}
+                asChild
+                mode="fill"
+                className="btn-fill-subtle min-w-[calc(50%-0.375rem)] flex-1"
+              >
+                <a
+                  href={link.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  tabIndex={measure ? -1 : undefined}
+                >
+                  {link.label}
+                </a>
+              </Button>
+            ))}
+          </div>
+        </Reveal>,
       );
     }
   } else {
     for (const block of project.case.blocks) {
       if (block.kind === "text") {
-        sections.push(
-          <div key={block.key} className="flex flex-col gap-6">
-            <TextBlocks items={block.items} />
-          </div>,
-        );
+        for (const chunk of textChunks(block.items)) {
+          sections.push(
+            <Reveal key={chunk.key} kind="rise" measure={measure}>
+              <TextChunk items={chunk.items} />
+            </Reveal>,
+          );
+        }
       } else if (measure) {
-        sections.push(<MediaBox key={block.key} />);
+        sections.push(
+          <Reveal key={block.key} kind="lift" measure={measure}>
+            <MediaBox />
+          </Reveal>,
+        );
       } else if (block.kind === "image") {
-        sections.push(<CaseImage key={block.key} src={block.src} inModal />);
+        sections.push(
+          <Reveal key={block.key} kind="lift" measure={measure}>
+            <CaseImage src={block.src} inModal />
+          </Reveal>,
+        );
       } else {
         sections.push(
-          <CaseVideo
-            key={block.key}
-            src={block.src}
-            autoplay={block.autoplay}
-            muted={block.muted}
-            loop={block.loop}
-            poster={block.poster}
-            controls={block.controls}
-            inModal
-          />,
+          <Reveal key={block.key} kind="lift" measure={measure}>
+            <CaseVideo
+              src={block.src}
+              autoplay={block.autoplay}
+              muted={block.muted}
+              loop={block.loop}
+              poster={block.poster}
+              controls={block.controls}
+              inModal
+            />
+          </Reveal>,
         );
       }
     }
@@ -209,10 +249,8 @@ function ProjectBody({
 
   return (
     <>
-      <div
-        {...blockEnter(0, "rise", measure)}
-        className="card-modal-text flex flex-col"
-      >
+      {/* Tags + lead come from the card: they morph with the panel, no enter. */}
+      <div className="card-modal-lead flex flex-col">
         <Tags tags={project.tags} />
         {lead ? (
           <p className="card-modal-copy text-subheadline whitespace-pre-line text-text-secondary">
@@ -220,19 +258,7 @@ function ProjectBody({
           </p>
         ) : null}
       </div>
-      {sections.map((section, index) => {
-        const key = isValidElement(section) ? section.key : index;
-        const media =
-          isValidElement(section) &&
-          (section.type === CaseImage ||
-            section.type === CaseVideo ||
-            section.type === MediaBox);
-        return (
-          <div key={key} {...blockEnter(index + 1, media ? "lift" : "rise", measure)}>
-            {section}
-          </div>
-        );
-      })}
+      {sections}
     </>
   );
 }
@@ -246,17 +272,33 @@ function Body({
   contactLinks: ContactLink[];
   measure?: boolean;
 }) {
+  if (card.kind === "company") {
+    const rest = card.blocks.filter((block) => block.text.trim());
+    return (
+      <div className="card-modal-body flex flex-col gap-6">
+        {/* Role + description are the card face: they only morph. */}
+        <div className="card-modal-lead-work flex flex-col">
+          {card.role.trim() ? (
+            <p className="card-role text-title3 text-text-primary">{card.role}</p>
+          ) : null}
+          {card.description.trim() ? (
+            <p className="card-modal-copy text-subheadline whitespace-pre-line text-text-secondary">
+              {card.description}
+            </p>
+          ) : null}
+        </div>
+        {textChunks(rest).map((chunk) => (
+          <Reveal key={chunk.key} kind="rise" measure={measure}>
+            <TextChunk items={chunk.items} />
+          </Reveal>
+        ))}
+      </div>
+    );
+  }
+
   return (
-    <div className="card-modal-body flex flex-col gap-6">
-      {card.kind === "company" ? (
-        textChunks(workItems(card)).map((chunk, index) => (
-          <div key={chunk.key} {...blockEnter(index, "rise", measure)}>
-            <TextBlocks items={chunk.items} />
-          </div>
-        ))
-      ) : (
-        <ProjectBody project={card} contactLinks={contactLinks} measure={measure} />
-      )}
+    <div className="card-modal-body card-modal-project flex flex-col gap-6">
+      <ProjectBody project={card} contactLinks={contactLinks} measure={measure} />
     </div>
   );
 }
@@ -303,10 +345,18 @@ export function CardModal({
   const phaseRef = useRef<"open" | "closing">("open");
   const closedRef = useRef(false);
   const [phase, setPhase] = useState<"open" | "closing">("open");
-  const [target, setTarget] = useState<Morph>({ ...origin, padX: origin.padding });
+  const [target, setTarget] = useState<Morph>({
+    ...origin,
+    padX: origin.padding,
+    namePad: 0,
+  });
   const targetRef = useRef(target);
   targetRef.current = target;
   const [scrollable, setScrollable] = useState(false);
+  // One-line title on the card (and in the modal for the way in): kept on
+  // one line while the panel moves, or the shrinking column wraps it and
+  // the header jumps a line taller just before it lands in the card.
+  const [titleLines, setTitleLines] = useState({ card: false, modal: false });
   const [settled, setSettled] = useState(false);
   const [fades, setFades] = useState({ top: false, bottom: false });
   const reduced =
@@ -348,7 +398,13 @@ export function CardModal({
     main?.setAttribute("inert", "");
 
     const measure = measureRef.current;
-    let dest: Morph = { ...origin, padX: origin.padding };
+    let dest: Morph = { ...origin, padX: origin.padding, namePad: 0 };
+    const oneLine = (el: HTMLElement | null | undefined) => {
+      if (!el) return false;
+      const line = px(getComputedStyle(el).lineHeight, 0);
+      return line > 0 && el.offsetHeight < line * 1.5;
+    };
+    const cardTitle = document.querySelector<HTMLElement>(`${cardSelector} h3`);
     if (measure) {
       const style = getComputedStyle(measure);
       const header = measure.querySelector<HTMLElement>("[data-measure-header]");
@@ -382,9 +438,25 @@ export function CardModal({
         icon: icon?.offsetWidth ?? 44,
         titleSize: px(titleStyle?.fontSize || "", 28),
         titleLine: px(titleStyle?.lineHeight || "", 32),
+        namePad: px(nameStyle?.paddingRight || "", 48),
         scrollY: origin.scrollY,
       };
       setScrollable(natural > height + 1);
+      setTitleLines({ card: oneLine(cardTitle), modal: oneLine(titleEl) });
+
+      // Blocks inside the final height come in while the panel grows, so
+      // the modal is never empty waiting for the morph to end.
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const top = measure.getBoundingClientRect().top;
+      const shown = [...measure.querySelectorAll<HTMLElement>("[data-measure-reveal]")].filter(
+        (el) => el.getBoundingClientRect().top - top < height - 8,
+      ).length;
+      const live = scrollRef.current?.querySelectorAll<HTMLElement>("[data-modal-reveal]");
+      live?.forEach((el, index) => {
+        if (!reduce && index >= shown) return;
+        el.style.setProperty("--enter", String(reduce ? 0 : 2.5 + index));
+        el.dataset.revealed = "";
+      });
     }
     setTarget(dest);
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -430,8 +502,42 @@ export function CardModal({
     );
   };
 
+  /**
+   * Blocks below the first screen come in as scrolling brings them into the
+   * modal; a few at once share an 80ms stagger.
+   */
+  const revealVisible = () => {
+    const root = scrollRef.current;
+    if (!root) return;
+    const rootBox = root.getBoundingClientRect();
+    const pending = [
+      ...root.querySelectorAll<HTMLElement>("[data-modal-reveal]:not([data-revealed])"),
+    ];
+    let step = 0;
+    for (const el of pending) {
+      const box = el.getBoundingClientRect();
+      const visible =
+        box.top < rootBox.bottom - 8 && box.bottom > rootBox.top + 8;
+      if (!visible) break;
+      el.style.setProperty("--enter", String(step));
+      el.dataset.revealed = "";
+      step += 1;
+    }
+  };
+
   useEffect(() => {
-    if (settled) updateFades();
+    if (!settled) return;
+    updateFades();
+    revealVisible();
+    const root = scrollRef.current;
+    if (!root) return;
+    const onScroll = () => {
+      updateFades();
+      revealVisible();
+    };
+    root.addEventListener("scroll", onScroll, { passive: true });
+    return () => root.removeEventListener("scroll", onScroll);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settled]);
 
   // Focus moves into the dialog itself, not onto the close button: a
@@ -496,6 +602,7 @@ export function CardModal({
     setTarget({
       ...origin,
       padX: origin.padding,
+      namePad: 0,
       top: box?.top ?? origin.top,
       left: box?.left ?? origin.left,
       width: box?.width ?? origin.width,
@@ -591,7 +698,12 @@ export function CardModal({
         <motion.div
           className="absolute inset-0 overflow-hidden bg-surface-card"
           initial={false}
-          animate={{ borderRadius: target.radius }}
+          animate={{
+            borderRadius: target.radius,
+            // Native scrollbars ignore ancestor overflow+radius in Chromium;
+            // clip-path keeps the track inside the rounded corner.
+            clipPath: `inset(0 round ${target.radius}px)`,
+          }}
           transition={moving}
         >
           {/* Header and body scroll together; the fades stay on the panel. */}
@@ -599,7 +711,6 @@ export function CardModal({
             ref={scrollRef}
             className="card-modal-scroll h-full overscroll-contain"
             style={{ overflowY: settled && scrollable ? "auto" : "hidden" }}
-            onScroll={updateFades}
           >
             <motion.div
               initial={false}
@@ -640,9 +751,9 @@ export function CardModal({
                   ) : null}
                 </motion.span>
                 <motion.div
-                  className="card-modal-name-live flex min-w-0 flex-1 flex-col"
+                  className="flex min-w-0 flex-1 flex-col"
                   initial={false}
-                  animate={{ marginLeft: target.headerGap }}
+                  animate={{ marginLeft: target.headerGap, paddingRight: target.namePad }}
                   transition={moving}
                 >
                   <span className="card-modal-date text-caption1 text-text-muted">
@@ -650,7 +761,13 @@ export function CardModal({
                   </span>
                   <motion.h2
                     id={titleId}
-                    className="text-title1 font-normal text-text-primary"
+                    className={cn(
+                      "text-title1 font-normal text-text-primary",
+                      !settled &&
+                        titleLines.card &&
+                        (!open || titleLines.modal) &&
+                        "truncate",
+                    )}
                     initial={false}
                     animate={{
                       fontSize: target.titleSize,

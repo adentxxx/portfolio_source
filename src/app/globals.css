@@ -787,9 +787,9 @@ body {
 }
 
 /* The close button sits in the corner (16 in, 64 wide). A long title wraps
-   before it instead of running under it. */
-.card-modal-name,
-.card-modal-name-live {
+   before it instead of running under it. The live header animates this
+   room from 0 on the card, read from here. */
+.card-modal-name {
   padding-right: 48px;
 }
 
@@ -798,16 +798,97 @@ body {
   padding-bottom: 40px;
 }
 
+/* Heading group: the title2 and everything under it up to the next one. */
+.card-modal-chunk {
+  gap: 16px;
+}
+
+/* Subheading group: the title3 and its copy up to the next one. */
 .card-modal-text {
+  gap: 4px;
+}
+
+/* Project modal, desktop: 8 between a subheading and its copy. */
+.card-modal-project .card-modal-text {
+  gap: 8px;
+}
+
+/* Project modal: paragraph spacing inside a text block. */
+.card-modal-project .card-modal-paragraphs {
+  gap: 6px;
+}
+
+/* Tags + lead description (Figma Project Modal Text Block: 12). */
+.card-modal-lead {
   gap: 12px;
+}
+
+/* Role + description (Figma Work Modal: 4). */
+.card-modal-lead-work {
+  gap: 4px;
 }
 
 .card-modal-media {
   border-radius: 24px;
 }
 
+/*
+  Modal body below the card face. A block comes in the way content does on
+  the home page: it rolls out from the bottom edge (the tilt, stretch and
+  shift of [data-rolling] at --roll: 1, settling flat) while it fades in
+  out of a blur, like a card's pieces ([data-rise]). Photos and video tilt
+  less, as in [data-roll="media"]. 80ms apart for a batch on screen.
+*/
+@keyframes modal-roll-in {
+  from {
+    opacity: 0;
+    filter: blur(6px);
+    transform: perspective(1000px) translateY(24px)
+      rotateX(var(--roll-tilt, -22deg))
+      scaleY(calc(1 + var(--roll-stretch, 0.09)));
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: perspective(1000px) translateY(0) rotateX(0deg) scaleY(1);
+  }
+}
+
+[data-modal-reveal] {
+  transform-origin: 50% 0;
+}
+
+[data-modal-reveal="lift"] {
+  --roll-tilt: -8deg;
+  --roll-stretch: 0.045;
+}
+
+[data-modal-reveal]:not([data-revealed]) {
+  opacity: 0;
+}
+
+[data-modal-reveal][data-revealed] {
+  animation: modal-roll-in 760ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: calc(var(--enter, 0) * 80ms);
+}
+
 .card-modal-scroll {
   scrollbar-width: thin;
+}
+
+/* Keep the scrollbar thumb out of the rounded corners (WebKit/Blink). */
+.card-modal-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.card-modal-scroll::-webkit-scrollbar-track {
+  margin-block: 24px;
+  background: transparent;
+}
+
+.card-modal-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 55%, transparent);
 }
 
 /* 40px fades in the card color at the top and bottom of the body. Content
@@ -921,8 +1002,7 @@ body {
   }
 
   /* Phone close: 8 in, 52 wide, so 36 past the 24 padding, plus a gap. */
-  .card-modal-name,
-  .card-modal-name-live {
+  .card-modal-name {
     padding-right: 44px;
   }
 
@@ -930,7 +1010,11 @@ body {
     padding-bottom: 28px;
   }
 
-  .card-modal-text {
+  .card-modal-project .card-modal-text {
+    gap: 4px;
+  }
+
+  .card-modal-lead {
     gap: 8px;
   }
 
@@ -1304,8 +1388,16 @@ body {
   }
 
   [data-enter],
-  .case-enter > * {
+  .case-enter > *,
+  [data-modal-reveal][data-revealed] {
     animation: none;
+  }
+
+  [data-modal-reveal]:not([data-revealed]),
+  [data-modal-reveal][data-revealed] {
+    opacity: 1;
+    transform: none;
+    filter: none;
   }
 
   [data-rise],
