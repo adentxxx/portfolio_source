@@ -1,5 +1,6 @@
 "use client";
 
+import { useUi } from "@/hooks/use-locale";
 import { publicPath } from "@/lib/public-path";
 import { useEffect, useRef, useState } from "react";
 
@@ -10,7 +11,10 @@ export function CaseVideo({
   muted,
   loop,
   controls,
+  inModal = false,
 }: {
+  /** Inside the case modal: no scroll roll, the modal's own corner radius. */
+  inModal?: boolean;
   src: string;
   poster: string | null;
   autoplay: boolean;
@@ -18,6 +22,7 @@ export function CaseVideo({
   loop: boolean;
   controls: boolean;
 }) {
+  const ui = useUi();
   const [motionReady, setMotionReady] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
   const [playing, setPlaying] = useState(false);
@@ -83,7 +88,12 @@ export function CaseVideo({
 
   return (
     <div
-      className="relative w-full overflow-hidden rounded-[24px] bg-surface-control"
+      data-roll={inModal ? undefined : "media"}
+      className={
+        inModal
+          ? "card-modal-media relative w-full overflow-hidden bg-surface-control"
+          : "relative w-full overflow-hidden rounded-[24px] bg-surface-control"
+      }
       style={{ aspectRatio: ratio ? String(ratio) : "116 / 50" }}
     >
       {visualReady ? null : (
@@ -107,7 +117,7 @@ export function CaseVideo({
           : "video-clean absolute inset-0 size-full cursor-pointer object-contain"
       }
       tabIndex={controls ? undefined : 0}
-      aria-label={controls ? undefined : playing ? "Пауза" : "Воспроизвести видео"}
+      aria-label={controls ? undefined : playing ? ui.videoPause : ui.videoPlay}
       onPlay={() => setPlaying(true)}
       onPause={() => setPlaying(false)}
       onClick={controls ? undefined : (event) => toggle(event.currentTarget)}
