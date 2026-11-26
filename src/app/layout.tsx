@@ -1,4 +1,5 @@
 import { GoogleAnalytics } from "@/components/google-analytics";
+import { YandexMetrika } from "@/components/yandex-metrika";
 import { Providers } from "@/components/providers";
 import { siteMetadata } from "@/lib/site-meta";
 import { themeInitScript } from "@/lib/theme";
@@ -39,6 +40,7 @@ export default function RootLayout({
       <body className="antialiased">
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
         <GoogleAnalytics />
+        <YandexMetrika />
         <Providers>{children}</Providers>
       </body>
     </html>

@@ -45,6 +45,12 @@ npm run build:pages
 - Перевод хранится в базе в полях с суффиксом `En` и правится в `/admin`: переключатель «Язык текстов» вверху. Пустое английское поле показывает русский текст.
 - Строки интерфейса — в `src/lib/i18n.ts`.
 
+## Аналитика
+
+- Google Analytics — `src/components/google-analytics.tsx`.
+- Яндекс Метрика (счётчик `114692409`, Вебвизор) — `src/components/yandex-metrika.tsx`.
+- Оба счётчика подключены в `src/app/layout.tsx` и не работают в `/admin`.
+
 ## Тема и звук
 
 - Тема сохраняется в `localStorage` (`portfolio-theme`). Кнопки mute нет, звук включён всегда.
